@@ -1,22 +1,49 @@
 import psycopg2
 import time
 import random
+from datetime import datetime
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def create_table_if_not_exists(conn):
+    sql = """
+    CREATE TABLE IF NOT EXISTS fitness_metrics (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        heart_rate INTEGER,
+        steps INTEGER,
+        recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql)
+            conn.commit()
+        logger.info("Table 'fitness_metrics' created or already exists")
+    except Exception as e:
+        logger.error(f"Error creating table: {e}")
+        conn.rollback()
 
 def main():
-    conn = psycopg2.connect(
-        host="postgres",
-        database="fitness_db",
-        user="postgres",
-        password="mysecretpassword",
-        port="5432"
-    )
+    logger.info("Starting improved fitness data generator...")
     
-    counter = 0
     try:
+        conn = psycopg2.connect(
+            host="postgres",
+            database="fitness_db",
+            user="postgres",
+            password="mysecretpassword",
+            port="5432"
+        )
+        create_table_if_not_exists(conn)
+        
+        counter = 0
         while True:
-            user_id = random.randint(1, 3)
-            heart_rate = random.randint(60, 120)
-            steps = random.randint(0, 100)
+            user_id = random.randint(1, 5)
+            heart_rate = random.randint(60, 180)
+            steps = random.randint(0, 200)
             
             with conn.cursor() as cur:
                 cur.execute(
@@ -26,14 +53,19 @@ def main():
                 conn.commit()
             
             counter += 1
-            if counter % 10 == 0:
-                print(f"Inserted {counter} records")
+            if counter % 5 == 0:
+                timestamp = datetime.now().strftime("%H:%M:%S")
+                logger.info(f"[{timestamp}] Records: {counter}, User: {user_id}, HR: {heart_rate}")
             
-            time.sleep(2)
+            time.sleep(1)
+            
     except KeyboardInterrupt:
-        print(f"\nStopped. Total records: {counter}")
+        logger.info(f"Stopped. Total records: {counter}")
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error(f"Unexpected error: {e}")
+    finally:
+        if conn:
+            conn.close()
 
 if __name__ == "__main__":
     main()
